@@ -7,7 +7,7 @@ import var;
 
 backend default {
     .host = "localhost";
-    .port = "8080";
+    .port = "8000";
     .probe = {
          .url = "/";
          .interval = 5s;

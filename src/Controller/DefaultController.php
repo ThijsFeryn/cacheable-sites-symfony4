@@ -17,6 +17,7 @@ class DefaultController extends Controller
         return $this
             ->render('index.twig')
             ->setPublic()
+            ->setMaxAge(100)
             ->setSharedMaxAge(500);
     }
     /**
@@ -26,7 +27,9 @@ class DefaultController extends Controller
     {
         $response = $this
             ->render('header.twig')
-            ->setPrivate();
+            ->setPublic()
+            ->setMaxAge(100)
+            ->setSharedMaxAge(500);
         $response->headers->addCacheControlDirective('no-store');
         return $response;
     }
@@ -35,8 +38,8 @@ class DefaultController extends Controller
      */
     public function footer()
     {
-        $response = $this->render('footer.twig');
-        $response
+        $response = $this->render('footer.twig')
+            ->setMaxAge(100)
             ->setSharedMaxAge(500)
             ->setPublic();
         return $response;
@@ -53,9 +56,9 @@ class DefaultController extends Controller
             $loginLogoutUrl = $this->generateUrl('login');
             $loginLogoutLabel = 'log_in';
         }
-        $response =  $this->render('nav.twig', ['loginLogoutUrl'=>$loginLogoutUrl,'loginLogoutLabel'=>$loginLogoutLabel]);
-        $response
+        $response =  $this->render('nav.twig', ['loginLogoutUrl'=>$loginLogoutUrl,'loginLogoutLabel'=>$loginLogoutLabel])
             ->setVary('X-Login',false)
+            ->setMaxAge(100)
             ->setSharedMaxAge(500)
             ->setPublic();
         return $response;
@@ -68,8 +71,8 @@ class DefaultController extends Controller
         if($jwt->validate($request->cookies->get('token'))) {
             return new RedirectResponse($this->generateUrl('home'));
         }
-        $response =  $this->render('login.twig',['loginLogoutUrl'=>$this->generateUrl('login'),'loginLogoutLabel'=>'log_in']);
-        $response
+        $response =  $this->render('login.twig',['loginLogoutUrl'=>$this->generateUrl('login'),'loginLogoutLabel'=>'log_in'])
+            ->setMaxAge(100)
             ->setSharedMaxAge(500)
             ->setVary('X-Login',false)
             ->setPublic();
@@ -107,8 +110,8 @@ class DefaultController extends Controller
         if(!$jwt->validate($request->cookies->get('token'))) {
             return new RedirectResponse($this->generateUrl('login'));
         }
-        $response =  $this->render('private.twig');
-        $response
+        $response =  $this->render('private.twig')
+            ->setMaxAge(100)
             ->setSharedMaxAge(500)
             ->setPublic();
         return $response;
