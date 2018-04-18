@@ -12,10 +12,9 @@ class ConditionalRequestListener
 {
     protected $redis;
     protected $logger;
-    public function __construct(RedisClient $redis, Logger $logger)
+    public function __construct(RedisClient $redis)
     {
         $this->redis = $redis;
-        $this->logger = $logger;
     }
     protected function isModified(Request $request, $etag)
     {

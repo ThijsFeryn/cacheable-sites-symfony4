@@ -33,7 +33,7 @@ services:
         tags:
             - { name: kernel.event_listener, event: kernel.response}
     App\EventListener\ConditionalRequestListener:
-        arguments: ["@sb_redis.default","@logger"]
+        arguments: ["@sb_redis.default"]
         tags:
             - { name: kernel.event_listener, event: kernel.request}
             - { name: kernel.event_listener, event: kernel.response}
