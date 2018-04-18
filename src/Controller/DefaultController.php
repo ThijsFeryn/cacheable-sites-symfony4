@@ -30,7 +30,6 @@ class DefaultController extends Controller
             ->setPublic()
             ->setMaxAge(100)
             ->setSharedMaxAge(500);
-        $response->headers->addCacheControlDirective('no-store');
         return $response;
     }
     /**
