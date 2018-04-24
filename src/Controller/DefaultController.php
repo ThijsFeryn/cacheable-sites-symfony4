@@ -3,9 +3,11 @@ namespace App\Controller;
 
 use Symfony\Component\HttpFoundation\Request;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use App\Service\JwtAuthentication;
+use Symfony\Component\Security\Http\Authentication\AuthenticationUtils;
 
 class DefaultController extends Controller
 {
@@ -46,50 +48,33 @@ class DefaultController extends Controller
     /**
      * @Route("/nav", name="nav")
      */
-    public function nav(Request $request, JwtAuthentication $jwt)
+    public function nav(Request $request)
     {
-        if($jwt->validate($request->cookies->get('token'))) {
-            $loginLogoutUrl = $loginLogoutUrl = $this->generateUrl('logout');
-            $loginLogoutLabel = 'log_out';
-        } else {
-            $loginLogoutUrl = $this->generateUrl('login');
-            $loginLogoutLabel = 'log_in';
-        }
-        $response =  $this->render('nav.twig', ['loginLogoutUrl'=>$loginLogoutUrl,'loginLogoutLabel'=>$loginLogoutLabel])
+        $response =  $this->render('nav.twig')
             ->setVary('X-Login',false)
             ->setMaxAge(100)
             ->setSharedMaxAge(500)
             ->setPublic();
-        return $response;
-    }
-    /**
-     * @Route("/login", name="login", methods="GET")
-     */
-    public function login(Request $request, JwtAuthentication $jwt)
-    {
-        if($jwt->validate($request->cookies->get('token'))) {
-            return new RedirectResponse($this->generateUrl('home'));
-        }
-        $response =  $this->render('login.twig',['loginLogoutUrl'=>$this->generateUrl('login'),'loginLogoutLabel'=>'log_in'])
-            ->setMaxAge(100)
-            ->setSharedMaxAge(500)
-            ->setVary('X-Login',false)
-            ->setPublic();
-        return $response;
-    }
-    /**
-     * @Route("/login", name="loginpost", methods="POST")
-     */
-    public function loginpost(Request $request, JwtAuthentication $jwt)
-    {
-        $username = $request->get('username');
-        $password = $request->get('password');
 
-        if(!$username || !$password || getenv('JWT_USERNAME') != $username  || !password_verify($password,getenv('JWT_PASSWORD'))) {
-            return new RedirectResponse($this->generateUrl('login'));
-        }
-        $response = new RedirectResponse($this->generateUrl('home'));
-        $response->headers->setCookie($jwt->createCookie($username));
+        return $response;
+    }
+    /**
+     * @Route("/login", name="login")
+     */
+    public function login(Request $request)
+    {
+        $response =  $this->render('login.twig',
+            [
+                'loginLogoutUrl' => $this->generateUrl('login'),
+                'loginLogoutLabel' => 'log_in',
+                'error' => $request->get('error')
+            ]
+        )
+            ->setVary('X-Login',false)
+            ->setMaxAge(100)
+            ->setSharedMaxAge(500)
+            ->setPublic();
+
         return $response;
     }
     /**
@@ -97,19 +82,17 @@ class DefaultController extends Controller
      */
     public function logout()
     {
-        $response = new RedirectResponse($this->generateUrl('login'));
+        $response =  new RedirectResponse($this->generateUrl('login'));
         $response->headers->clearCookie('token');
         return $response;
     }
     /**
      * @Route("/private", name="private")
      */
-    public function private(Request $request, JwtAuthentication $jwt)
+    public function private(Request $request)
     {
-        if(!$jwt->validate($request->cookies->get('token'))) {
-            return new RedirectResponse($this->generateUrl('login'));
-        }
         $response =  $this->render('private.twig')
+            ->setVary('X-Login',false)
             ->setMaxAge(100)
             ->setSharedMaxAge(500)
             ->setPublic();

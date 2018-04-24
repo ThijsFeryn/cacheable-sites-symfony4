@@ -39,7 +39,7 @@
     $(document).ready(function(){
         if ($.cookie('token') != null ){
             var token = parseJwt($.cookie("token"));
-            $("#usernameLabel").html(', ' + token.sub);
+            $("#usernameLabel").html(', ' + token.username);
         }
     });
 </script>

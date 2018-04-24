@@ -32,6 +32,7 @@ sub vcl_recv {
     }
     call jwt;
     if(req.url == "/private" && req.http.X-Login != "true") {
+        std.log("Private content, X-Login is not true");
         return(synth(302,"/logout"));
     }
     return(hash);
@@ -62,6 +63,7 @@ sub vcl_synth {
 
 sub jwt {
     unset req.http.X-Login;
+    std.log("Trying to find token cookie");
     if(req.http.cookie ~ "^([^;]+;[ ]*)*token=[^\.]+\.[^\.]+\.[^\.]+([ ]*;[^;]+)*$") {
         std.log("Token cookie found");
         cookie.parse(req.http.cookie);
@@ -72,7 +74,8 @@ sub jwt {
         var.set("algorithm", regsub(digest.base64url_decode(var.get("header")),{"^.*?"alg"\s*:\s*"(\w+)".*?$"},"\1"));
 
         if(var.get("type") != "JWT" || var.get("algorithm") != "HS256") {
-            return(synth(400, "Invalid token"));
+            std.log("Invalid token header");
+            return(synth(400, "Invalid token header"));
         }
 
         var.set("rawPayload",regsub(var.get("token"),"[^\.]+\.([^\.]+)\.[^\.]+$","\1"));
@@ -80,11 +83,14 @@ sub jwt {
         var.set("currentSignature",digest.base64url_nopad_hex(digest.hmac_sha256(var.get("key"),var.get("header") + "." + var.get("rawPayload"))));
         var.set("payload", digest.base64url_decode(var.get("rawPayload")));
         var.set("exp",regsub(var.get("payload"),{"^.*?"exp"\s*:\s*(\w+).*?$"},"\1"));
-        var.set("username",regsub(var.get("payload"),{"^.*?"sub"\s*:\s*"(\w+)".*?$"},"\1"));
+        var.set("username",regsub(var.get("payload"),{"^.*?"username"\s*:\s*"(\w+)".*?$"},"\1"));
 
         if(var.get("signature") != var.get("currentSignature")) {
-            return(synth(400, "Invalid token"));
+            std.log("Invalid token signature");
+            return(synth(400, "Invalid token signature"));
         }
+
+        std.log("Ready to validate username");
 
         if(var.get("username") ~ "^\w+$") {
             std.log("Username: " + var.get("username"));

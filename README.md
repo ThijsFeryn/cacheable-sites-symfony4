@@ -24,30 +24,183 @@ Non-cacheable content blocks will not cause a full miss on the page. These conte
 
 *ESI* tags are rendered by the reverse proxy. If the code notices that there's no *reverse caching proxy* in front of the application, it will render the output inline, without ESI.
 
+## Conditional requests
+
+This example code uses *conditional requests* that only loads the full page when the content has modified. 
+
+It uses the `ETag` response header to expose the fingerprint of a page. And validates if the `If-None-Match` request header matches that fingerprint. If so, the execution of the code is stopped and an `HTTP/304 Not Modified` response is returned without any payload.
+
+The fact that a `HTTP/304 Not Modified` response returns no payload, is an optimization in terms of bandwidth. But stopping the execution of the code, also reduces the load on the server.
+
+The example code supports *conditional requests* via an the [CondtionalRequestListener](/src/EventListener/ConditionalRequestListener.php).
+
+Etags are stored in Redis before the output is returned, which happens in the [onKernelResponse](/src/EventListener/ConditionalRequestListener.php#L33) method. This means you need a [Redis](https://redis.io) dependency. I'm using the [Symfony Redis bundle](https://github.com/symfony-bundles/redis-bundle) for that.
+
+Etags are validated from Redis in the [onKernelRequest](/src/EventListener/ConditionalRequestListener.php#L27) method. If the Etag matches, the HTTP response is immediately returned, and the rest of the application bypassed.
+ 
+```php
+<?php
+namespace App\EventListener;
+
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Event\GetResponseEvent;
+use Symfony\Component\HttpKernel\Event\FilterResponseEvent;
+use SymfonyBundles\RedisBundle\Redis\Client as RedisClient;
+
+class ConditionalRequestListener
+{
+    protected $redis;
+
+    public function __construct(RedisClient $redis)
+    {
+        $this->redis = $redis;
+    }
+
+    protected function isModified(Request $request, $etag)
+    {
+        if ($etags = $request->getETags()) {
+             return in_array($etag, $etags) || in_array('*', $etags);
+        }
+        return true;
+    }
+
+    public function onKernelRequest(GetResponseEvent $event)
+    {
+        $request = $event->getRequest();
+        $etag = $this->redis->get('etag:'.md5($request->getUri()));
+        if(!$this->isModified($request,$etag)) {
+            $event->setResponse(Response::create('Not Modified',Response::HTTP_NOT_MODIFIED));
+        }
+    }
+    
+    public function onKernelResponse(FilterResponseEvent $event)
+    {
+        $response = $event->getResponse();
+        $request = $event->getRequest();
+
+        $etag = md5($response->getContent());
+        $response->setEtag($etag);
+        if($this->isModified($request,$etag)) {
+            $this->redis->set('etag:'.md5($request->getUri()),$etag);
+        }
+    }
+}
+```
+
 ## Authentication
 
-We use a single cookie that contains our *JSON Web Token*. The *JWT* is generated and validated by PHP. We don't use native PHP sessions. 
- 
-The `/private` route is only accessible if the user is logged in. The login state is stored as a JWT in the *token cookie*.  
+The `/private` page is protected by a layer of authentication. The Symfony frameworks provides built-in authentication support base on the [security bundle](https://symfony.com/doc/current/4.0/security.html).
 
-PHP validates this token, but there's even a piece of Javascript code that reads the username from the JWT and prints it in the header.
+### Symfony security bundle
 
-The fact that we used client-side session storage allows for reverse caching proxies, such as Varnish, to do the validation without having to connect with the backend.
+This bundle provides a security configuration file: [config/packages/security.yml](/config/packages/security.yml). Using simple configuration, as illustrated in the example below, you can define users, roles, and routes that require authentication.
 
-To login, please use the *admin* username and change the password hash [in the JWT section of the .env.dist file](/.env.dist). The hash is created via the PHP [password_hash](https://php.net/password_hash) function using the default Bcrypt algorithm. Please also set a *secret key* for the JWT HMAC signing.
 ```
-###> JWT authentication ###
-JWT_KEY=SlowWebSitesSuck
-JWT_USERNAME=admin
-JWT_PASSWORD=$2y$10$431rvq1qS9ewNFP0Gti/o.kBbuMK4zs8IDTLlxm5uzV7cbv8wKt0K
-###< JWT authentication ###
+security:
+    access_denied_url: /login
+    encoders:
+      Symfony\Component\Security\Core\User\User:
+        algorithm: bcrypt
+        cost: 12
+    providers:
+      in_memory:
+        memory:
+          users:
+            admin:
+              password: $2y$12$R.XN53saKaGFZ5Zqqpv5h.9NzwP0RH4VlEGmRryW1G3cM3ov1yq32
+              roles: 'ROLE_ADMIN'
+    firewalls:
+      dev:
+        pattern: ^/(_(profiler|wdt)|css|images|js)/
+        security: false
+      main:
+        anonymous: true
+        form_login:
+          check_path:               /login
+    access_control:
+        - { path: ^/private, roles: ROLE_ADMIN }
 ```
+
+This example protects the `/private` route, but unfortunately, this information is stored in *PHP session variables*, which are stored server side. Accessing this information requires access to the backend and requires a cache bypass.
+
+### JSON Web Tokens
+
+Luckily, there is a way to store session state at the client-side, which doesn't require backend access. We can use [JSON Web Tokens](https://jwt.io) to store this information.
+
+The *JWT* will be stored in the *token cookie*, which will be managed by the application, **but which can also be validated by Varnish**.
+
+The [LexikJWTAuthenticationBundle](https://github.com/lexik/LexikJWTAuthenticationBundle) can serve as an extension to the standard security bundle and requires just a little bit of extra configuration.
+
+We'll modify [config/packages/security.yml](/config/packages/security.yml) and add custom handlers and a custom authenticator:
+
+```
+security:
+    access_denied_url: /login
+    encoders:
+      Symfony\Component\Security\Core\User\User:
+        algorithm: bcrypt
+        cost: 12
+    providers:
+      in_memory:
+        memory:
+          users:
+            admin:
+              password: $2y$12$R.XN53saKaGFZ5Zqqpv5h.9NzwP0RH4VlEGmRryW1G3cM3ov1yq32
+              roles: 'ROLE_ADMIN'
+    firewalls:
+      dev:
+        pattern: ^/(_(profiler|wdt)|css|images|js)/
+        security: false
+      main:
+        anonymous: true
+        stateless: true
+        form_login:
+          check_path:               /login
+          success_handler:          App\Security\JwtAuthenticationSuccessHandler
+          failure_handler:          App\Security\JwtAuthenticationFailureHandler
+        guard:
+          authenticators:
+            - lexik_jwt_authentication.jwt_token_authenticator
+    access_control:
+        - { path: ^/private, roles: ROLE_ADMIN }
+```
+
+The JWT bundle also has its own configuration file under [config/packages/lxik_jwt_authentication.yml](/config/packages/lxik_jwt_authentication.yml) as illustrated below:
+
+```
+lexik_jwt_authentication:
+  private_key_path: '%kernel.project_dir%/%env(JWT_PRIVATE_KEY_PATH)%'
+  public_key_path: '%kernel.project_dir%/%env(JWT_PRIVATE_KEY_PATH)%'
+  token_ttl: 3600
+  encoder:
+    signature_algorithm: HS256
+    service: lexik_jwt_authentication.encoder.lcobucci
+  token_extractors:
+    cookie:
+      enabled: true
+      name: token
+```
+
+This configuration file defines crypto key locations, the lifetime of the token, the algorithm to use for encryption of the signature and the service to encode and decode the token. You'll also notice that a *token cookie* is used to store the token.
+
+> The default algorithm is *RS256* which uses a private and a public key. This example is based on *HS256* which is an *HMAC* signature that only has a private key. That's why the private and public key point to the same file.
+
+### A website, not an API
+
+JWT is mostly used for API authentication, and the [LexikJWTAuthenticationBundle](https://github.com/lexik/LexikJWTAuthenticationBundle) is tailored to the needs of an API. This means that the output is in JSON format. In order to make this HTML-based, I defined a custom event listener and 2 custom handlers.
+
+The [App\Security\JwtAuthenticationSuccessHandler](/src/Security/JwtAuthenticationSuccessHandler.php) will set the *token* cookie and redirect to the `/private` page upon successful authentication, instead of displaying the token in JSON format.
+
+The [App\Security\JwtAuthenticationFailureHandler](/src/Security/JwtAuthenticationFailureHandler.php) will redirect back to the `/login` when the authentication fails, instead of displaying a JSON error.
+
+The [App\EventListener\JwtAuthenticationListener](/src/EventListener/JwtAuthenticationListener.php) will intercept JSON errors when the token has expired, or is invalid. It will dispatch the `/login` page when that happens.   
 
 ## Varnish
 
 To see the impact of this code, I would advise you to install [Varnish](https://www.varnish-cache.org/). Varnish will respect the *HTTP response headers* that were set and will cache the output.
 
-This is the minimum amount of [VCL code](https://www.varnish-cache.org/docs/4.1/reference/vcl.html#varnish-configuration-language) you need to make this work:
+This is the minimum amount of [VCL code](https://www.varnish-cache.org/docs/trunk/reference/vcl.html#varnish-configuration-language) you need to make this work:
 
 ```
 vcl 4.0;
@@ -84,6 +237,7 @@ sub vcl_recv {
     }
     call jwt;
     if(req.url == "/private" && req.http.X-Login != "true") {
+        std.log("Private content, X-Login is not true");
         return(synth(302,"/logout"));
     }
     return(hash);
@@ -114,6 +268,7 @@ sub vcl_synth {
 
 sub jwt {
     unset req.http.X-Login;
+    std.log("Trying to find token cookie");
     if(req.http.cookie ~ "^([^;]+;[ ]*)*token=[^\.]+\.[^\.]+\.[^\.]+([ ]*;[^;]+)*$") {
         std.log("Token cookie found");
         cookie.parse(req.http.cookie);
@@ -124,7 +279,8 @@ sub jwt {
         var.set("algorithm", regsub(digest.base64url_decode(var.get("header")),{"^.*?"alg"\s*:\s*"(\w+)".*?$"},"\1"));
 
         if(var.get("type") != "JWT" || var.get("algorithm") != "HS256") {
-            return(synth(400, "Invalid token"));
+            std.log("Invalid token header");
+            return(synth(400, "Invalid token header"));
         }
 
         var.set("rawPayload",regsub(var.get("token"),"[^\.]+\.([^\.]+)\.[^\.]+$","\1"));
@@ -132,11 +288,14 @@ sub jwt {
         var.set("currentSignature",digest.base64url_nopad_hex(digest.hmac_sha256(var.get("key"),var.get("header") + "." + var.get("rawPayload"))));
         var.set("payload", digest.base64url_decode(var.get("rawPayload")));
         var.set("exp",regsub(var.get("payload"),{"^.*?"exp"\s*:\s*(\w+).*?$"},"\1"));
-        var.set("username",regsub(var.get("payload"),{"^.*?"sub"\s*:\s*"(\w+)".*?$"},"\1"));
+        var.set("username",regsub(var.get("payload"),{"^.*?"username"\s*:\s*"(\w+)".*?$"},"\1"));
 
         if(var.get("signature") != var.get("currentSignature")) {
-            return(synth(400, "Invalid token"));
+            std.log("Invalid token signature");
+            return(synth(400, "Invalid token signature"));
         }
+
+        std.log("Ready to validate username");
 
         if(var.get("username") ~ "^\w+$") {
             std.log("Username: " + var.get("username"));
@@ -150,6 +309,7 @@ sub jwt {
         }
     }
 }
+
 ```
 
 **You will need to install the [libvmod-digest](https://github.com/varnish/libvmod-digest) in order to process the *JWT*.**

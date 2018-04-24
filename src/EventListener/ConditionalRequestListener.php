@@ -1,7 +1,6 @@
 <?php
 namespace App\EventListener;
 
-use Symfony\Bridge\Monolog\Logger;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\GetResponseEvent;
@@ -11,11 +10,12 @@ use SymfonyBundles\RedisBundle\Redis\Client as RedisClient;
 class ConditionalRequestListener
 {
     protected $redis;
-    protected $logger;
+
     public function __construct(RedisClient $redis)
     {
         $this->redis = $redis;
     }
+
     protected function isModified(Request $request, $etag)
     {
         if ($etags = $request->getETags()) {
@@ -23,6 +23,7 @@ class ConditionalRequestListener
         }
         return true;
     }
+
     public function onKernelRequest(GetResponseEvent $event)
     {
         $request = $event->getRequest();
@@ -31,6 +32,7 @@ class ConditionalRequestListener
             $event->setResponse(Response::create('Not Modified',Response::HTTP_NOT_MODIFIED));
         }
     }
+
     public function onKernelResponse(FilterResponseEvent $event)
     {
         $response = $event->getResponse();

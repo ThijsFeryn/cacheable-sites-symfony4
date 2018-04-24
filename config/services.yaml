@@ -33,15 +33,20 @@ services:
         tags:
             - { name: kernel.event_listener, event: kernel.response}
     App\EventListener\ConditionalRequestListener:
-        arguments: ["@sb_redis.default"]
+        arguments: ['@sb_redis.default']
         tags:
             - { name: kernel.event_listener, event: kernel.request}
             - { name: kernel.event_listener, event: kernel.response}
     App\EventListener\VaryListener:
         tags:
             - { name: kernel.event_listener, event: kernel.response}
-    App\Service\JwtAuthentication:
-        arguments:
-            $key: '%env(JWT_KEY)%'
-            $username: '%env(JWT_USERNAME)%'
-            $password: '%env(JWT_PASSWORD)%'
+    App\EventListener\JwtAuthenticationListener:
+        arguments: ['@http_kernel','@router','@request_stack']
+        tags:
+            - { name: kernel.event_listener, event: lexik_jwt_authentication.on_jwt_invalid, method: onJWTInvalid}
+            - { name: kernel.event_listener, event: lexik_jwt_authentication.on_jwt_not_found, method: onJWTNotFound }
+            - { name: kernel.event_listener, event: lexik_jwt_authentication.on_jwt_expired, method: onJWTExpired }
+    App\Security\JwtAuthenticationSuccessHandler:
+        arguments: ['@lexik_jwt_authentication.jwt_manager','@event_dispatcher','@router','%lexik_jwt_authentication.token_ttl%']
+    App\Security\JwtAuthenticationFailureHandler:
+        arguments: ['@event_dispatcher','@router']
