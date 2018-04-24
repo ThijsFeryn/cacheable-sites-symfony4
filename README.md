@@ -34,7 +34,7 @@ The fact that a `HTTP/304 Not Modified` response returns no payload, is an optim
 
 The example code supports *conditional requests* via an the [CondtionalRequestListener](/src/EventListener/ConditionalRequestListener.php).
 
-Etags are stored in Redis before the output is returned, which happens in the [onKernelResponse](/src/EventListener/ConditionalRequestListener.php#L33) method. This means you need a [Redis](https://redis.io) dependency. I'm using the [Symfony Redis bundle](https://github.com/symfony-bundles/redis-bundle) for that.
+Etags are stored in Redis before the output is returned, which happens in the [onKernelResponse](/src/EventListener/ConditionalRequestListener.php#L36) method. This means you need a [Redis](https://redis.io) dependency. I'm using the [Symfony Redis bundle](https://github.com/symfony-bundles/redis-bundle) for that.
 
 Etags are validated from Redis in the [onKernelRequest](/src/EventListener/ConditionalRequestListener.php#L27) method. If the Etag matches, the HTTP response is immediately returned, and the rest of the application bypassed.
  
