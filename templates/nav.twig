@@ -1,11 +1,6 @@
 <nav class="navbar navbar-default navbar-fixed-side">
     <ul class="nav">
         <li><a href="{{ url('home') }}">Home</a></li>
-    {% if is_granted('IS_AUTHENTICATED_FULLY') %}
-        <li><a href="{{ url('logout') }}">{{ 'log_out' | trans }}</a></li>
-    {% else %}
-        <li><a href="{{ url('login') }}">{{ 'log_in' | trans }}</a></li>
-    {% endif %}
         <li><a href="{{ url('private') }}">Private</a></li>
     </ul>
     {{ include('rendered.twig') }}
