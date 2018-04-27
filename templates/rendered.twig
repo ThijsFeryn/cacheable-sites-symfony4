@@ -1,3 +1,3 @@
-{% if show_timestamps == true %}
+{% if show_timestamps is defined and show_timestamps == true %}
 <small>{{ 'rendered' | trans({'%date%':"now"|date("Y-m-d H:i:s")}) }}</small>
 {% endif %}
