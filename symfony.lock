@@ -23,9 +23,6 @@
     "doctrine/lexer": {
         "version": "v1.0.1"
     },
-    "firebase/php-jwt": {
-        "version": "v5.0.0"
-    },
     "lcobucci/jwt": {
         "version": "3.2.2"
     },
@@ -184,6 +181,9 @@
             "version": "3.3",
             "ref": "f8a63faa0d9521526499c0a8f403c9964ecb0527"
         }
+    },
+    "symfony/templating": {
+        "version": "v4.0.8"
     },
     "symfony/translation": {
         "version": "3.3",
