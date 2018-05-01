@@ -51,11 +51,8 @@ class DefaultController extends Controller
     public function nav(Request $request)
     {
         $response =  $this->render('nav.twig')
-            ->setVary('X-Login',false)
-            ->setMaxAge(100)
-            ->setSharedMaxAge(500)
-            ->setPublic();
-
+            ->setPrivate();
+        $response->headers->addCacheControlDirective('no-store');
         return $response;
     }
     /**
@@ -69,11 +66,8 @@ class DefaultController extends Controller
                 'loginLogoutLabel' => 'log_in',
                 'error' => $request->get('error')
             ]
-        )
-            ->setVary('X-Login',false)
-            ->setMaxAge(100)
-            ->setSharedMaxAge(500)
-            ->setPublic();
+        )->setPrivate();
+        $response->headers->addCacheControlDirective('no-store');
 
         return $response;
     }
@@ -84,6 +78,8 @@ class DefaultController extends Controller
     {
         $response =  new RedirectResponse($this->generateUrl('login'));
         $response->headers->clearCookie('token');
+        $response->setPrivate();
+        $response->headers->addCacheControlDirective('no-store');
         return $response;
     }
     /**
@@ -92,10 +88,8 @@ class DefaultController extends Controller
     public function private(Request $request)
     {
         $response =  $this->render('private.twig')
-            ->setVary('X-Login',false)
-            ->setMaxAge(100)
-            ->setSharedMaxAge(500)
-            ->setPublic();
+            ->setPrivate();
+        $response->headers->addCacheControlDirective('no-store');
         return $response;
     }
 }

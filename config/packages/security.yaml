@@ -17,13 +17,7 @@ security:
         security: false
       main:
         anonymous: true
-        stateless: true
         form_login:
           check_path:               /login
-          success_handler:          App\Security\JwtAuthenticationSuccessHandler
-          failure_handler:          App\Security\JwtAuthenticationFailureHandler
-        guard:
-          authenticators:
-            - lexik_jwt_authentication.jwt_token_authenticator
     access_control:
         - { path: ^/private, roles: ROLE_ADMIN }
