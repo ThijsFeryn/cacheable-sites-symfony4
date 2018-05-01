@@ -19,5 +19,8 @@ security:
         anonymous: true
         form_login:
           check_path:               /login
+        logout:
+          path:   /logout
+          target: /
     access_control:
         - { path: ^/private, roles: ROLE_ADMIN }

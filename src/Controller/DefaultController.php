@@ -72,17 +72,6 @@ class DefaultController extends Controller
         return $response;
     }
     /**
-     * @Route("/logout", name="logout")
-     */
-    public function logout()
-    {
-        $response =  new RedirectResponse($this->generateUrl('login'));
-        $response->headers->clearCookie('token');
-        $response->setPrivate();
-        $response->headers->addCacheControlDirective('no-store');
-        return $response;
-    }
-    /**
      * @Route("/private", name="private")
      */
     public function private(Request $request)
